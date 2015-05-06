@@ -469,6 +469,8 @@ describe("Access-express", function() {
 
     it ('should control access to express routers through method overloading', function(done) {
         grantedAcl = access.Writer.getAcl();
+        app.use('/Nogrant', access.Book.read.requiredFor(sendOk));
+        app.use('/Nogrant', access.error);
         app.use(function (req, res, next) {
             grantedAcl.grantTo(req);
             next();
@@ -496,6 +498,11 @@ describe("Access-express", function() {
             function(next) {
                 http.request()
                     .get('/Book/write')
+                    .expect(403, null, next);
+            },
+            function(next) {
+                http.request()
+                    .get('/Nogrant')
                     .expect(403, null, next);
             }
         ], done);
