@@ -473,6 +473,7 @@ describe("Access-express", function() {
         app.use('/Nogrant', access.error);
         app.use(function (req, res, next) {
             grantedAcl.grantTo(req);
+            req.user = "testUser";
             next();
         });
         app.use('/Book/read', access.Book.read.requiredFor(sendOk));
@@ -503,7 +504,7 @@ describe("Access-express", function() {
             function(next) {
                 http.request()
                     .get('/Nogrant')
-                    .expect(403, null, next);
+                    .expect(401, null, next);
             }
         ], done);
     });
