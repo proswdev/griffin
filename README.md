@@ -61,7 +61,6 @@ var app = express();
 app.use('/Book/read', access.Book.read.or.Book.browse.required);
 app.use('/Book/edit', access.Writer.required, editBook);
 app.use('/Letter/send', access.Letter.send.requiredFor(mailController.send));
-app.use(access.error); // Catch access violations
 ```
 Access verification and control can also be performed within the function body:
 ```javascript
@@ -72,9 +71,6 @@ exports.bookEdit = function (req,res) {
 	} else {
 		// Deny read access
 	}
-	// Require write access. Throw exception otherwise
-	access.Book.write.requiredFor(req);
-	// Won't get here unless Book.write access was granted
 }
 ```
 Dynamic access notation using strings is supported as follows:
@@ -86,10 +82,6 @@ access.eval(bookWrite).requiredFor(...)
 access.Reader[resource]['write'].requiredFor(...)
 access[role][resource][action].requiredFor(...)
 access.Reader.eval('Book.write').requiredFor(...)
-```
-A custom exception is thrown whenever granted access is in violation with required access. By adding the following line to the end of the Express router, Griffin will convert this exception into a standard HTTP 403 status code response. The adaption layer will allow customization of this behavior to meet your needs or adapt to frameworks other than Express.
-```javascript
-app.use(access.error);
 ```
 ## Access Definition ##
 Griffin defines access control through the notion of permissions, resources, actions and roles. A resource identifies an application specific data set that requires protection from unauthorized access like user info or blog contents. Actions define what operations can be performed on that resource and depend on the nature of the data involved. A particular action associated with a specific resource is known as a permission. Permissions can be grouped into roles to form a  logical set of access rules, but roles can also be defined without permissions to simply identify generic access classes. A role can also include other smaller roles.     
@@ -206,30 +198,13 @@ exports.readPage = access.Reader.requiredFor(function (req,res) {
 	// Implement page reading here ...
 });
 ```
-The *requiredFor* function returns a modified version of the specified controller method by checking the rights granted to the request with the specified access requirements before invoking the original method. When a violation is detected, the original method is not invoked and an exception is thrown instead. The *requiredFor* function will not alter the arguments to and return values from the original controller method in any way. 
-
-*requiredFor* can also be used within a function body to guard access to certain code sections by specifying the incoming request directly instead of through the controller method as shown in the followin example.
-```javascript
-exports.bookEdit = function (req,res) {
-	var book = sampleBook.open();
-	// Allow public read access 
-	book.read()
-	if (book.outOfDate()) {
-		// Require write access. Throw exception otherwise
-		access.Book.write.requiredFor(req);
-		// Won't get here unless Book.write access was granted
-		book.write();
-	}
-	book.close();
-}
-```
+The *requiredFor* function returns a modified version of the specified controller method by checking the rights granted to the request with the specified access requirements before invoking the original method. When a violation is detected, the original method is not invoked and an error status response is returned instead. The *requiredFor* function will not alter the arguments to and return values from the original controller method in any way. 
 ### .required ###
 The *required* property returns a middleware function that can be used directly by routers to perform authorization:
 ```javascript
 var app = express();
 app.use('/Book/read', access.Book.read.or.Book.browse.required);
 app.use('/Book/edit', access.Writer.required, editBook);
-app.use(access.error); // Catch access violations
 ```
 ### .getAcl() ###
 Instead of performing authorization directly on the ACL produced through the dot notation, Griffin also provides the *getAcl* function to retrieve the ACL and assign it to a variable for later use. This is most useful when the same access control list is required in multiple locations throughout your code. The returned ACL can be used in exactly the same way as the dot notation:

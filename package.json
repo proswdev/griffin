@@ -1,6 +1,6 @@
 {
   "name": "griffin",
-  "version": "0.0.3",
+  "version": "1.0.0",
   "description": "Powerful access control using dot notation syntax",
   "main": "index.js",
   "scripts": {

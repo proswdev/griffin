@@ -455,22 +455,12 @@ describe("Access-express", function() {
     before(function(done) {
         app = express();
         http.createServer(app, done);
-
-        // Express implementation requires error overloading before router setup
-        optCount = { error: 0 };
-        var orgError = access.options.error;
-        access.options = {
-            error: function(err,req,res,next) {
-                optCount.error++;
-                return orgError.apply(this, arguments);
-            }
-        };
+        optCount = {};
     });
 
     it ('should control access to express routers through method overloading', function(done) {
         grantedAcl = access.Writer.getAcl();
         app.use('/Nogrant', access.Book.read.requiredFor(sendOk));
-        app.use('/Nogrant', access.error);
         app.use(function (req, res, next) {
             grantedAcl.grantTo(req);
             req.user = "testUser";
@@ -478,7 +468,6 @@ describe("Access-express", function() {
         });
         app.use('/Book/read', access.Book.read.requiredFor(sendOk));
         app.use('/Book/write', access.Book.write.requiredFor(sendOk));
-        app.use('/Book', access.error);
         async.waterfall([
             function(next) {
                 http.request()
@@ -513,7 +502,6 @@ describe("Access-express", function() {
         app.use('/Music', access.Listener.or.Composer.required);
         app.use('/Music/listen', sendOk);
         app.use('/Music/compose', access.Composer.required, sendOk);
-        app.use('/Music', access.error);
         async.waterfall([
             function(next) {
                 grantedAcl = access.Reader.getAcl();
@@ -547,7 +535,7 @@ describe("Access-express", function() {
         var orgOptions = access.options;
         for (var option in orgOptions) {
             optCount[option] = 0;
-            if (option != 'error') {    // error already overloaded in before()
+            if (typeof(option) === "function") {
                 newOptions[option] = (function() {
                     var __option = option;
                     var __orgMethod = orgOptions[option];
@@ -585,7 +573,8 @@ describe("Access-express", function() {
             }
         ], function() {
             for (var option in optCount) {
-                optCount[option].should.be.above(0);
+                if (typeof(option) === "function")
+                    optCount[option].should.be.above(0);
             }
             done();
         });
