@@ -25,7 +25,7 @@ access.define([
 	{ role: 'Admin', access: '*' }
 ]);
 ```
-NOTE: The examples in this document are based on the default integration with Express but be aware that Griffin provides an adaption layer to simplify integration with other frameworks.
+NOTE: The examples in this document are based on the default integration with Express but be aware that Griffin provides an adaption layer to simplify integration with other frameworks. See Griffin Customization at the end of this document for more details.
 
 Access is granted to incoming requests based on your local business rules. The following example grants access using roles...
 ```javascript
@@ -61,6 +61,14 @@ var app = express();
 app.use('/Book/read', access.Book.read.or.Book.browse.required);
 app.use('/Book/edit', access.Writer.required, editBook);
 app.use('/Letter/send', access.Letter.send.requiredFor(mailController.send));
+```
+By default, Griffin returns HTTP status 403 "Forbidden" with message "Access denied" when access is not permitted but the response behavior is configurable. See Griffin Customization below for more details about configurable options:
+```javascript
+var access = require('griffin');
+// It is recommended to return HTTP 404 "Not Found" without failure message if server does
+// not wish to reveal exactly why the request has been refused  
+access.options.errorStatus = 404;
+access.options.errorMessage = null;
 ```
 Access verification and control can also be performed within the function body:
 ```javascript
@@ -124,7 +132,7 @@ access.define([
 Note that permissions may be defined first or included on the fly during role definitions. Griffin will register any role or permission the first time it is encountered in the access structure. Also note that roles may include other roles or may not define access permissions at all.
 
 ### Wildcards ###
-Wildcards may be used to assign all applicable actions or resources to a particular role. In the following example, *Author* is assigned permissions *Book.read*, *Book.edit* and *Book.browse* while *Reader* is assigned *Book.read *and *Letter.read*. Also note how the wildcard is used to assign all available permissions to *Admin*.
+Wildcards may be used to assign all applicable actions or resources to a particular role:
 ```javascript
 access.define([
 	{ resource: 'Book', action: 'read,edit,browse' },
@@ -135,15 +143,16 @@ access.define([
 	{ role: 'Admin', access: '*' }
 ]};
 ```
+In the example above, *Author* is assigned permissions *Book.read*, *Book.edit* and *Book.browse* while *Reader* is assigned *Book.read* and *Letter.read*. Also note how the wildcard is used to assign all available permissions to *Admin*.
 ### Locking Access Definitions ###
-Once all access has been defined, further modifications can be prohibited by calling `access.lock()`. Once lock() has been called, all relevant access related objects will be frozen and `access.define()` will no longer be available. It is not possible to unlock access once it has been locked. This can help enhance security by making it harder to compromise resources due to accidental (or deliberate) access modifications once the application is up and running.
+Once all access has been defined, further modifications can be prohibited by calling *access.lock()*. Once *lock()* has been called, all relevant access related objects will be frozen and *access.define()* will no longer be available. It is not possible to unlock access once it has been locked. This can help enhance security by making it harder to compromise resources due to accidental (or deliberate) access modifications once the application is up and running.
 ## Access Control List ##
 Access control is specified through the use of a simple but powerful dot notation syntax. In its basic form, an access control list (**ACL**) consists of any combination of roles and permissions, with permissions consisting of resource(s) paired with action(s). The resulting ACL contains all the listed roles and permissions including all permissions grouped within the roles. 
 ```javascript
 var access = require('griffin');
 access.Author.Reader.Book.Letter.read.write.Book.browse.requiredFor(..)
 ```
-Assuming all elements have been properly defined through `access.define()`, this example produces an ACL that includes roles *Author* and *Reader* and permissions *Book.read*, *Book.write*, *Letter.read*, *Letter.write* and *Book.browse*. As shown above, all actions are associated with all resources directly preceding it which allows the notation to be more concise. Also note how resources and roles are capitalized while actions are all lowercase. This is not required of course but highly recommended to enhance readability. Adding a *role* postfix like *readerRole* or *adminRole* may be helpful as well. 
+Assuming all elements have been properly defined through *access.define()*, this example produces an ACL that includes roles *Author* and *Reader* and permissions *Book.read*, *Book.write*, *Letter.read*, *Letter.write* and *Book.browse*. As shown above, all actions are associated with all resources directly preceding it which allows the notation to be more concise. Also note how resources and roles are capitalized while actions are all lowercase. This is not required of course but highly recommended to enhance readability. Adding a *role* postfix like *readerRole* or *adminRole* or *data* postfix for resources like *userData* may be helpful as well. 
 ### .and ###
 To enhance readability, the *and* keyword may be used anywhere without altering the ACL in any way.
 ```javascript
@@ -166,13 +175,28 @@ exports.Review = access
 });
 ```
 ### Dynamic Notation ###
-The eval() method can be used anywhere in the dot notation to add dynamic components to the access control list. It accepts a string representation of the required roles and/or permissions and is otherwise identical to the hard-coded dot notation. The following lines all produce the exact same ACL:
+The *eval* method can be used anywhere in the dot notation to add dynamic components to the access control list. It accepts a string representation of the required roles and/or permissions and is otherwise identical to the hard-coded dot notation. The following lines all produce the exact same ACL:
 ```javascript
 access.Reader.Book.write.getAcl()
 access.eval('Reader.Book.write').getAcl()
 access.Reader.eval('Book.write').getAcl()
 ```
-Although more limited than the eval() function, dynamic content is also available through standard JavaScript of course.  The following examples produce the same ACL as above: 
+Passing strings with an invalid notation syntax or with undefined roles or permissions to the *eval* method will throw an exception. Method *isValid* can be used to validate a string before attempting to create an ACL dynamically.  
+```javascript
+if (access.isValid(someAclString)) {
+	acl = access.eval(someAclString).getAcl();
+} else {
+	console.log('Invalid ACL string');
+}
+```
+Use methods *isRole* and *isResource* to determine if a component used in dynamic notation represents either a role or a resource:
+```javascript
+if (access.isRole('Reader'))
+	console.log('Reader is a role');
+if (access.isResource('Book'))
+	console.log('Book is a resource');
+```
+Although more limited than the *eval*() method, dynamic content is also available through standard JavaScript of course.  The following examples produce the same ACL as above: 
 ```javascript
 var role='Reader', resource='Book', action='edit';
 access.Reader[resource]['write'].getAcl()
@@ -182,7 +206,7 @@ access[role][resource][action].getAcl()
 Defining access requirements would not by very useful without means to enforce them of course. Griffin provides several methods to integrate access verification depending on your implementation needs. All methods are designed to make verification as simple and non-obtrusive as reasonably possible.
 
 ### .grantTo() ###
-Verification involves comparing access rights that have been granted with rights that are actually required to perform a particular function. With Express, the main execution flow is handled through the incoming *request* and outgoing *response* objects. Use the *grantTo* function to assign the appropriate rights to an incoming request based on your local requirements, like in the following (highly simplified) example:  
+Verification involves comparing access rights that have been granted with rights that are actually required to perform a particular function. With Express, the main execution flow is handled through the incoming *request* and outgoing *response* objects. Use the *grantTo* method to assign the appropriate rights to an incoming request based on your local requirements, like in the following (highly simplified) example:  
 ```javascript
 exports.authenticate = function(req, res) {
 	if (req.user === "teacher")
@@ -191,14 +215,20 @@ exports.authenticate = function(req, res) {
 		access.Book.read.grantTo(req);
 }
 ```
+Use the *getAcl* method to retrieve the ACL that has been granted to the incoming request:
+```javascript
+access.Book.read.grantTo(req);
+...
+var acl = access.getAcl(req);
+```
 ### .requiredFor() ###
-Once access has been granted to an incoming request, the *requiredFor* function makes it very simple to add access verification to a conventional controller method:
+Once access has been granted to an incoming request, the *requiredFor* method makes it very simple to add access verification to a conventional controller method:
 ```javascript
 exports.readPage = access.Reader.requiredFor(function (req,res) {
 	// Implement page reading here ...
 });
 ```
-The *requiredFor* function returns a modified version of the specified controller method by checking the rights granted to the request with the specified access requirements before invoking the original method. When a violation is detected, the original method is not invoked and an error status response is returned instead. The *requiredFor* function will not alter the arguments to and return values from the original controller method in any way. 
+The *requiredFor* method returns a modified version of the specified controller method by checking the rights granted to the request with the specified access requirements before invoking the original method. When a violation is detected, the original method is not invoked and an error status response is returned instead. The *requiredFor* method will not alter the arguments to and return values from the original controller method in any way. 
 ### .required ###
 The *required* property returns a middleware function that can be used directly by routers to perform authorization:
 ```javascript
@@ -207,7 +237,7 @@ app.use('/Book/read', access.Book.read.or.Book.browse.required);
 app.use('/Book/edit', access.Writer.required, editBook);
 ```
 ### .getAcl() ###
-Instead of performing authorization directly on the ACL produced through the dot notation, Griffin also provides the *getAcl* function to retrieve the ACL and assign it to a variable for later use. This is most useful when the same access control list is required in multiple locations throughout your code. The returned ACL can be used in exactly the same way as the dot notation:
+Instead of performing authorization directly on the ACL produced through the dot notation, Griffin also provides the *getAcl* method to retrieve the ACL and assign it to a variable for later use. This is most useful when the same access control list is required in multiple locations throughout your code. The returned ACL can be used in exactly the same way as the dot notation:
 ```javascript
 var readAccess = access.Book.read.or.Book.browse.required.getAcl();
 exports.readCover = readAccess.requiredFor(function (req,res) {
@@ -221,7 +251,7 @@ exports.readIndex = readAccess.requiredFor(function (req,res) {
 });
 ```
 ### .isGrantedTo() ###
-Use the *isGrantedTo* function to perform verification within the code body and control program flow accordingly:
+Use the *isGrantedTo* method to perform verification within the code body and control program flow accordingly:
 ```javascript
 exports.bookEdit = function (req,res) {
 	// Verify read access
@@ -232,4 +262,86 @@ exports.bookEdit = function (req,res) {
 	}
 }
 ```
+### .filter() ###
+The *filter* method updates the ACL by filtering out any roles and permissions not present in the ACL passed in as argument, basically ANDing the ACL with another ACL:
+```javascript
+access.define([
+  { role: 'Reader', access: { resource: 'Book', action: 'read,browse' } },
+  { role: 'Writer', access: [{ role: 'Reader' }, { resource: 'Book', action: 'write,edit' }] }
+]);
+var allowedAcl = access.Book.read.write;
+
+console.log('Result: ' + access.Reader.filter(allowedAcl));
+// => Result: [Book.read]
+
+console.log('Result: ' + access.Writer.filter(allowedAcl));
+// => Result: [Book.read,Book.write]
+```
+### .toString() ###
+The *toString* method converts an ACL to a string. By default, the method will produce a comma delimited list of all roles and permissions included in the ACL and enclosed in brackets as follows:
+```javascript
+access.define([
+  { role: 'Reader', access: { resource: 'Book', action: 'read,browse' } },
+  { role: 'Writer', access: [{ role: 'Reader' }, { resource: 'Book', action: 'write,edit' }] }
+]);
+console.log(access.Reader.or.Writer.toString());
+// => "[Book.read,Book.browse,Reader] || [Book.read,Book.browse,Book.write,Book.edit,Reader,Writer]"
+```
+Options can be passed to the *toString* method to control the conversion process through the following properties:
+```javascript
+var options = {
+	roles: boolean,			// Include roles in string (default: true)
+	permissions: boolean,	// Include permissions in string (default: true)
+	brackets: boolean		// Enclose each ACL list in brackets (default: true)
+};
+```
+Some examples using the *toString* method with options: 
+
+```javascript
+access.Writer.toString({ roles: true, permissions: false, brackets: false });
+// => "Reader,Writer"
+
+access.Reader.or.Writer.toString({ roles: false, permissions: true });
+// => "[Book.read,Book.browse] || [Book.read,Book.browse,Book.write,Book.edit]"
+```
+## Griffin Customization ##
+The default Griffin implementation is designed for integration with Express and to return HTTP status 403 "Forbidden" with message "Access denied" when access is not permitted. However, Griffin provides options to change the error response behavior and an adaption layer to simplify integration with other frameworks. Options can be changed directly on the access object:
+```javascript
+var access = require('griffin');
+// It is recommended to return HTTP 404 "Not Found" without failure message if server does
+// not wish to reveal exactly why the request has been refused  
+access.options.errorStatus = 404;
+access.options.errorMessage = null;
+```
+Alternatively, option values can be modified by assigning a custom options object. Griffin will replace the  specified options while leaving all other options unchanged:
+```javascript
+var access = require('griffin');
+// It is recommended to return HTTP 404 "Not Found" without failure message if server does
+// not wish to reveal exactly why the request has been refused  
+access.options = {
+  errorStatus: 404,
+  errorMessage: null 
+};
+```
+Griffin implements an adaption layer through a set of functions defined as option properties. Whenever access processing requires framework specific implementations, Griffin will call these functions to abstract framework dependent functionality. The default integration for Express is implemented in module *acl-options* in the Griffin package. When adapting for other frameworks, it is recommended to use this module as a reference.
+
+### Adapter layer functions ###
+
+**setAcl**(*arguments*)
+Assign granted ACL to incoming request using framework specific arguments
+
+**getAcl**(*arguments*)
+Extract granted ACL from request using framework specific arguments
+
+**cont**(*arguments*)
+Called with the *access.required* middleware function to continue processing by subsequent middleware since access has been granted
+
+**halt**(*arguments*)
+Called with the *access.required* middleware function to halt further processing since access has been denied
+
+**accept**(*arguments*)
+Called with *access.requiredFor* when access has been granted and the target function is about to be invoked.  
+
+**reject**(*arguments*)
+Called with *access.requiredFor* to perform framework specific processing when access to the target function has been denied.
  
