@@ -45,7 +45,7 @@ exports.readPage = access.Reader.requiredFor(function (req,res) {
 	// Implement page reading here ...
 });
 ```
-Access notation can be as simple as shown above or a complex combination of roles and permissions. The following example will allow access to the page writing function if the incoming request is granted Book read+write+browse permissions and Letter read+write permissions (all listed permissions are required). Alternatively, access is also allowed if the request is granted both the Reader and Writer roles.
+Access notation can be as simple as shown above or a complex combination of roles and permissions. The following example will allow access to the page writing function if the incoming request is granted *Book read+write+browse* permissions and *Letter read+write* permissions (all listed permissions are required). Alternatively, access is also allowed if the request is granted both the *Reader* and *Writer* roles.
 ```javascript
 exports.writePage = access
 	.Book.Letter.read.write.and.Book.browse
@@ -104,7 +104,7 @@ access.define([
 ]);
 access.define({ resource: 'Book', action: 'browse' });
 ```
-Note that access definitions may be extended by calling `access.define()` more than once. The example above defines permissions *Book.read*, *Book.write* and *Book.browse*, but can be written more efficiently by listing all actions together as follows:
+Note that access definitions may be extended by calling *access.define()* more than once. The example above defines permissions *Book.read*, *Book.write* and *Book.browse*, but can be written more efficiently by listing all actions together as follows:
 ```javascript
 access.define({ resource: 'Book', action: 'read,write,browse' });
 ```
@@ -327,21 +327,15 @@ Griffin implements an adaption layer through a set of functions defined as optio
 
 ### Adapter layer functions ###
 
-**setAcl**(*arguments*)
-Assign granted ACL to incoming request using framework specific arguments
+**setAcl**(*arguments*) - Assign granted ACL to incoming request using framework specific arguments
 
-**getAcl**(*arguments*)
-Extract granted ACL from request using framework specific arguments
+**getAcl**(*arguments*) - Extract granted ACL from request using framework specific arguments
 
-**cont**(*arguments*)
-Called with the *access.required* middleware function to continue processing by subsequent middleware since access has been granted
+**cont**(*arguments*) - Called with the *access.required* middleware function to continue processing by subsequent middleware since access has been granted
 
-**halt**(*arguments*)
-Called with the *access.required* middleware function to halt further processing since access has been denied
+**halt**(*arguments*) - Called with the *access.required* middleware function to halt further processing since access has been denied
 
-**accept**(*arguments*)
-Called with *access.requiredFor* when access has been granted and the target function is about to be invoked.  
+**accept**(*arguments*) - Called with *access.requiredFor* when access has been granted and the target function is about to be invoked.  
 
-**reject**(*arguments*)
-Called with *access.requiredFor* to perform framework specific processing when access to the target function has been denied.
+**reject**(*arguments*) - Called with *access.requiredFor* to perform framework specific processing when access to the target function has been denied.
  
