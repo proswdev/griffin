@@ -33,7 +33,7 @@ describe("Access", function() {
   function verifyAccess(_access, includes, excludes) {
     var i,len,acl,acls;
 
-    if (typeof(_access) === 'string') {
+    if (typeof _access === 'string') {
       acls = _access.split(' || ');
     } else {
       if (!(_access instanceof Acl))
@@ -451,12 +451,180 @@ describe("Access", function() {
   });
 });
 
+describe("Access-object", function() {
+
+  var specs,testBook;
+
+  beforeEach(function() {
+    testBook = {
+      title: 'testBook',
+      content: 'many pages',
+      bookmarks: 'my bookmarks',
+      notes: 'my notes',
+      sold: 100
+    };
+    var bookRead = access.Book.read.getAcl();
+    var bookWrite = access.Book.write.getAcl();
+    specs = {
+      title: { read: 'Book.read', write: 'Author' },
+      content: { read: bookRead, write: bookWrite },
+      bookMarks: { rdwr: 'Reader' },
+      sold: { rdwr: 'Writer' }
+    };
+  });
+
+  it ('should be able to provide read protection for external objects', function(done) {
+    var protect = access.protect(specs);
+    var result = protect.$extractFor(access.Reader.getAcl(), testBook);
+    result.should.match({
+      title: 'testBook',
+      content: 'many pages',
+      bookmarks: 'my bookmarks',
+      notes: 'my notes'
+    });
+    result = protect.$extractFor(access.Writer.getAcl(), testBook);
+    result.should.match(testBook);
+    done();
+  });
+
+  it ('should be able to provide write protection for external objects', function(done) {
+    var protect = access.protect(specs);
+    var result = protect.$updateBy(
+      access.Reader.getAcl(),
+      {
+        title: 'otherBook',
+        content: 'new pages',
+        bookmarks: 'new bookmarks',
+        notes: 'new notes',
+        sold: 101
+      },
+      testBook
+    );
+    result.should.match({
+      title: 'testBook',
+      content: 'many pages',
+      bookmarks: 'new bookmarks',
+      notes: 'new notes',
+      sold: 100
+    });
+    result = protect.$updateBy(
+      access.Author.getAcl(),
+      {
+        title: 'otherBook',
+        content: 'more pages',
+        bookmarks: 'more bookmarks',
+        notes: 'more notes',
+        sold: 101
+      },
+      testBook
+    );
+    result.should.match({
+      title: 'otherBook',
+      content: 'more pages',
+      bookmarks: 'more bookmarks',
+      notes: 'more notes',
+      sold: 100
+    });
+    result = protect.$updateBy(
+      access.Writer.getAcl(),
+      {
+        title: 'yet anotherBook',
+        content: 'even more pages',
+        bookmarks: 'even more bookmarks',
+        notes: 'even more notes',
+        sold: 101
+      },
+      testBook
+    );
+    result.should.match({
+      title: 'yet anotherBook',
+      content: 'even more pages',
+      bookmarks: 'even more bookmarks',
+      notes: 'even more notes',
+      sold: 101
+    });
+    result.should.match(testBook);
+    done();
+  });
+
+  it ('should be able to add read protection to existing objects', function(done) {
+    access.protect(specs, testBook);
+    var result = testBook.$extractFor(access.Reader.getAcl());
+    result.should.match({
+      title: 'testBook',
+      content: 'many pages',
+      bookmarks: 'my bookmarks',
+      notes: 'my notes'
+    });
+    result = testBook.$extractFor(access.Writer.getAcl());
+    result.should.match(testBook);
+    done();
+  });
+
+  it ('should be able to add write protection to existing objects', function(done) {
+    access.protect(specs, testBook);
+    testBook.$updateBy(
+      access.Reader.getAcl(),
+      {
+        title: 'otherBook',
+        content: 'new pages',
+        bookmarks: 'new bookmarks',
+        notes: 'new notes',
+        sold: 101
+      }
+    );
+    testBook.should.match({
+      title: 'testBook',
+      content: 'many pages',
+      bookmarks: 'new bookmarks',
+      notes: 'new notes',
+      sold: 100
+    });
+    testBook.$updateBy(
+      access.Author.getAcl(),
+      {
+        title: 'otherBook',
+        content: 'more pages',
+        bookmarks: 'more bookmarks',
+        notes: 'more notes',
+        sold: 101
+      }
+    );
+    testBook.should.match({
+      title: 'otherBook',
+      content: 'more pages',
+      bookmarks: 'more bookmarks',
+      notes: 'more notes',
+      sold: 100
+    });
+    testBook.$updateBy(
+      access.Writer.getAcl(),
+      {
+        title: 'yet anotherBook',
+        content: 'even more pages',
+        bookmarks: 'even more bookmarks',
+        notes: 'even more notes',
+        sold: 101
+      }
+    );
+    testBook.should.match({
+      title: 'yet anotherBook',
+      content: 'even more pages',
+      bookmarks: 'even more bookmarks',
+      notes: 'even more notes',
+      sold: 101
+    });
+    done();
+  });
+
+});
+
 var express = require('express');
 var http = require('./utils/http');
 
 describe("Access-express", function() {
 
-  var app,grantedAcl,optCount;
+  var app,grantedAcl,optCount,handler;
 
   function sendOk(req,res) {
     res.status(200).send();
@@ -464,17 +632,25 @@ describe("Access-express", function() {
 
   before(function(done) {
     app = express();
-    http.createServer(app, done);
+    http.createServer(app, function() {
+      app.use(function (req, res, next) {
+        grantedAcl.grantTo(req);
+        if (handler)
+          handler(req,res,next);
+        else
+          next();
+      });
+      done();
+    });
     optCount = {};
+  });
+
+  beforeEach(function() {
+    handler = null;
   });
 
   it ('should control access to express routers through method overloading', function(done) {
     grantedAcl = access.Writer.getAcl();
-    //app.use('/Nogrant', access.Book.read.requiredFor(sendOk));
-    app.use(function (req, res, next) {
-      grantedAcl.grantTo(req);
-      next();
-    });
     app.use('/Book/read', access.Book.read.requiredFor(sendOk));
     app.use('/Book/write', access.Book.write.requiredFor(sendOk));
     async.waterfall([
@@ -498,6 +674,20 @@ describe("Access-express", function() {
         http.request()
           .get('/Book/write')
           .expect(403, null, next);
+      },
+      function(next) {
+        handler = function(req,res,next) {
+          access.Book.write.extendTo(req);
+          next();
+        };
+        http.request()
+          .get('/Book/read')
+          .expect(200, null, next);
+      },
+      function(next) {
+        http.request()
+          .get('/Book/write')
+          .expect(200, null, next);
       }
     ], done);
   });
@@ -539,7 +729,7 @@ describe("Access-express", function() {
     var orgOptions = access.options;
     for (var option in orgOptions) {
       optCount[option] = 0;
-      if (typeof(option) === "function") {
+      if (typeof option === "function") {
         newOptions[option] = (function() {
           var __option = option;
           var __orgMethod = orgOptions[option];
@@ -577,7 +767,7 @@ describe("Access-express", function() {
       }
     ], function() {
       for (var option in optCount) {
-        if (typeof(option) === "function")
+        if (typeof option === "function")
           optCount[option].should.be.above(0);
       }
       done();
