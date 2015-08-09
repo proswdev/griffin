@@ -48,7 +48,10 @@ describe("Access", function() {
       acls.length.should.equal(len);
     for (i = 0; i < len; i++) {
       var include = includes[i].split(',');
-      acl = acls[i].substr(1, acls[i].length-2).split(',');
+      if (acls[i][0] == '[')
+        acl = acls[i].substr(1, acls[i].length-2).split(',');
+      else
+        acl = acls[i].split(',');
       acl.length.should.equal(include.length);
       include.forEach(function(item) {
         acl.indexOf(item).should.be.above(-1);
@@ -62,7 +65,10 @@ describe("Access", function() {
       acls.length.should.equal(len);
     for (i = 0; i < len; i++) {
       var exclude = excludes[i].split(',');
-      acl = acls[i].substr(1, acls[i].length-2).split(',');
+      if (acls[i][0] == '[')
+        acl = acls[i].substr(1, acls[i].length-2).split(',');
+      else
+        acl = acls[i].split(',');
       exclude.forEach(function(item) {
         acl.indexOf(item).should.be.below(0);
       });
@@ -445,10 +451,29 @@ describe("Access", function() {
     verifyAccess(access.Writer.toString(), "Writer,Author,Composer,Book.read,Book.write,Book.edit,Song.compose,Letter.send");
     verifyAccess(acl.toString(), "Writer,Author,Composer,Book.read,Book.write,Book.edit,Song.compose,Letter.send");
     verifyAccess(acl.toString({ roles: true, permissions: false, brackets: true }), "Writer,Author,Composer", "Book.read,Book.write,Book.edit,Song.compose,Letter.send" );
-    verifyAccess(acl.toString({ roles: false, permissions: true, brackets: true }), "Book.read,Book.write,Book.edit,Song.compose,Letter.send", "Writer,Author,Composer");
+    verifyAccess(acl.toString({ roles: false, permissions: true, brackets: false }), "Book.read,Book.write,Book.edit,Song.compose,Letter.send", "Writer,Author,Composer");
     acl.toString().should.equal('[' + acl.toString({ brackets: false }) + ']');
     done();
   });
+
+  it ('should be able to export/import Acl to/from string', function(done) {
+    var acl1,acl2;
+    acl1 = access.Reader.Song.listen.or.Author.Song.compose.getAcl();
+    acl2 = access.eval(acl1.toString({export: true})).getAcl();
+    acl2.equals(acl1).should.be.true;
+    acl2 = access.eval(acl1.toString({permissions: false, export: true})).getAcl();
+    acl2.equals(acl1).should.be.false;
+    acl2.equals(access.Reader.or.Author.getAcl()).should.be.true;
+    acl2 = access.eval(acl1.toString({roles: false, export: true})).getAcl();
+    acl2.equals(acl1).should.be.false;
+    acl2.equals(access.
+      Book.Letter.read.Book.browse.Song.listen
+      .or.
+      Book.read.write.edit.Song.compose.getAcl()
+    ).should.be.true;
+    done();
+  });
+
 });
 
 describe("Access-object", function() {
