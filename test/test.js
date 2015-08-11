@@ -478,166 +478,228 @@ describe("Access", function() {
 
 describe("Access-object", function() {
 
-  var specs,testBook;
+  var specs,$default$,testBook,bookUpdates;
 
   beforeEach(function() {
     testBook = {
-      title: 'testBook',
-      content: 'many pages',
-      bookmarks: 'my bookmarks',
-      notes: 'my notes',
-      sold: 100
+      title: 'Title1',
+      content: 'Content1',
+      sales: 10,
+      reviews: 'Reviews1',
+      remarks: 'Remarks1'
+    };
+    bookUpdates = {
+      title: 'Title2',
+      content: 'Content2',
+      sales: 20,
+      reviews: 'Reviews2',
+      remarks: 'Remarks2'
     };
     var bookRead = access.Book.read.getAcl();
     var bookWrite = access.Book.write.getAcl();
     specs = {
+//      _default$: { read: 'Book.read', write: 'Author' },
       title: { read: 'Book.read', write: 'Author' },
-      content: { read: bookRead, write: bookWrite },
-      bookMarks: { rdwr: 'Reader' },
-      sold: { rdwr: 'Writer' }
+      content: { read: bookRead, write: 'Author' },
+      sales: { rdwr: 'Writer' },
+      reviews: { read: 'Book.read', write: 'Reader' }
     };
   });
 
-  it ('should be able to provide read protection for external objects', function(done) {
+  it ('should read protect objects - test #1', function(done) {
     var protect = access.protect(specs);
     var result = protect.$extractFor(access.Reader.getAcl(), testBook);
     result.should.match({
-      title: 'testBook',
-      content: 'many pages',
-      bookmarks: 'my bookmarks',
-      notes: 'my notes'
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1',
+      remarks: 'Remarks1'
     });
-    result = protect.$extractFor(access.Writer.getAcl(), testBook);
-    result.should.match(testBook);
     done();
   });
 
-  it ('should be able to provide write protection for external objects', function(done) {
+  it ('should read protect objects - test #2', function(done) {
     var protect = access.protect(specs);
-    var result = protect.$updateBy(
-      access.Reader.getAcl(),
-      {
-        title: 'otherBook',
-        content: 'new pages',
-        bookmarks: 'new bookmarks',
-        notes: 'new notes',
-        sold: 101
-      },
-      testBook
-    );
+    var result = protect.$extractFor(access.Author.getAcl(), testBook);
     result.should.match({
-      title: 'testBook',
-      content: 'many pages',
-      bookmarks: 'new bookmarks',
-      notes: 'new notes',
-      sold: 100
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1',
+      remarks: 'Remarks1'
     });
-    result = protect.$updateBy(
-      access.Author.getAcl(),
-      {
-        title: 'otherBook',
-        content: 'more pages',
-        bookmarks: 'more bookmarks',
-        notes: 'more notes',
-        sold: 101
-      },
-      testBook
-    );
-    result.should.match({
-      title: 'otherBook',
-      content: 'more pages',
-      bookmarks: 'more bookmarks',
-      notes: 'more notes',
-      sold: 100
-    });
-    result = protect.$updateBy(
-      access.Writer.getAcl(),
-      {
-        title: 'yet anotherBook',
-        content: 'even more pages',
-        bookmarks: 'even more bookmarks',
-        notes: 'even more notes',
-        sold: 101
-      },
-      testBook
-    );
-    result.should.match({
-      title: 'yet anotherBook',
-      content: 'even more pages',
-      bookmarks: 'even more bookmarks',
-      notes: 'even more notes',
-      sold: 101
-    });
+    done();
+  });
+
+
+  it ('should read protect objects - test #3', function(done) {
+    var protect = access.protect(specs);
+    var result = protect.$extractFor(access.Writer.getAcl(), testBook);
     result.should.match(testBook);
     done();
   });
 
-  it ('should be able to add read protection to existing objects', function(done) {
+  it ('should read protect objects using defaults - test #1', function(done) {
+    specs.$default$ = { rdwr: 'Author' };
+    var protect = access.protect(specs);
+    var result = protect.$extractFor(access.Reader.getAcl(), testBook);
+    result.should.match({
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1'
+    });
+    done();
+  });
+
+  it ('should read protect objects using defaults - test #2', function(done) {
+    specs.$default$ = { rdwr: 'Author' };
+    var protect = access.protect(specs);
+    var result = protect.$extractFor(access.Author.getAcl(), testBook);
+    result.should.match({
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1',
+      remarks: 'Remarks1'
+    });
+    done();
+  });
+
+  it ('should read protect objects using defaults - test #3', function(done) {
+    specs.$default$ = { rdwr: 'Author' };
+    var protect = access.protect(specs);
+    var result = protect.$extractFor(access.Writer.getAcl(), testBook);
+    result.should.match(testBook);
+    done();
+  });
+
+  it ('should write protect objects - test #1', function(done) {
+    var protect = access.protect(specs);
+    var result = protect.$updateBy(access.Reader.getAcl(), bookUpdates, testBook);
+    result.should.match({
+      title: 'Title1',
+      content: 'Content1',
+      sales: 10,
+      reviews: 'Reviews2',
+      remarks: 'Remarks2'
+    });
+    done();
+  });
+
+  it ('should write protect objects - test #2', function(done) {
+    var protect = access.protect(specs);
+    var result = protect.$updateBy(access.Author.getAcl(), bookUpdates, testBook);
+    result.should.match({
+      title: 'Title2',
+      content: 'Content2',
+      sales: 10,
+      reviews: 'Reviews1',
+      remarks: 'Remarks2'
+    });
+    done();
+  });
+
+  it ('should write protect objects - test #3', function(done) {
+    var protect = access.protect(specs);
+    var result = protect.$updateBy(access.Writer.getAcl(), bookUpdates, testBook);
+    result.should.match({
+      title: 'Title2',
+      content: 'Content2',
+      sales: 20,
+      reviews: 'Reviews1',
+      remarks: 'Remarks2'
+    });
+    done();
+  });
+
+  it ('should write protect objects using defaults - test #1', function(done) {
+    specs.$default$ = { rdwr: 'Writer' };
+    var protect = access.protect(specs);
+    var result = protect.$updateBy(access.Reader.getAcl(), bookUpdates, testBook);
+    result.should.match({
+      title: 'Title1',
+      content: 'Content1',
+      sales: 10,
+      reviews: 'Reviews2',
+      remarks: 'Remarks1'
+    });
+    done();
+  });
+
+  it ('should write protect objects using defaults - test #2', function(done) {
+    specs.$default$ = { rdwr: 'Writer' };
+    var protect = access.protect(specs);
+    var result = protect.$updateBy(access.Author.getAcl(), bookUpdates, testBook);
+    result.should.match({
+      title: 'Title2',
+      content: 'Content2',
+      sales: 10,
+      reviews: 'Reviews1',
+      remarks: 'Remarks1'
+    });
+    done();
+  });
+
+  it ('should write protect objects using defaults - test #3', function(done) {
+    specs.$default$ = { rdwr: 'Writer' };
+    var protect = access.protect(specs);
+    var result = protect.$updateBy(access.Writer.getAcl(), bookUpdates, testBook);
+    result.should.match({
+      title: 'Title2',
+      content: 'Content2',
+      sales: 20,
+      reviews: 'Reviews1',
+      remarks: 'Remarks2'
+    });
+    done();
+  });
+
+  it ('should extend objects with read protection', function(done) {
     access.protect(specs, testBook);
     var result = testBook.$extractFor(access.Reader.getAcl());
     result.should.match({
-      title: 'testBook',
-      content: 'many pages',
-      bookmarks: 'my bookmarks',
-      notes: 'my notes'
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1',
+      remarks: 'Remarks1'
     });
-    result = testBook.$extractFor(access.Writer.getAcl());
-    result.should.match(testBook);
     done();
   });
 
-  it ('should be able to add write protection to existing objects', function(done) {
+  it ('should extend objects with read protection using defaults', function(done) {
+    specs.$default$ = { rdwr: 'Author' };
     access.protect(specs, testBook);
-    testBook.$updateBy(
-      access.Reader.getAcl(),
-      {
-        title: 'otherBook',
-        content: 'new pages',
-        bookmarks: 'new bookmarks',
-        notes: 'new notes',
-        sold: 101
-      }
-    );
-    testBook.should.match({
-      title: 'testBook',
-      content: 'many pages',
-      bookmarks: 'new bookmarks',
-      notes: 'new notes',
-      sold: 100
+    var result = testBook.$extractFor(access.Author.getAcl());
+    result.should.match({
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1',
+      remarks: 'Remarks1'
     });
-    testBook.$updateBy(
-      access.Author.getAcl(),
-      {
-        title: 'otherBook',
-        content: 'more pages',
-        bookmarks: 'more bookmarks',
-        notes: 'more notes',
-        sold: 101
-      }
-    );
+    done();
+  });
+
+  it ('should extend objects with write protection', function(done) {
+    access.protect(specs, testBook);
+    testBook.$updateBy(access.Author.getAcl(), bookUpdates);
     testBook.should.match({
-      title: 'otherBook',
-      content: 'more pages',
-      bookmarks: 'more bookmarks',
-      notes: 'more notes',
-      sold: 100
+      title: 'Title2',
+      content: 'Content2',
+      sales: 10,
+      reviews: 'Reviews1',
+      remarks: 'Remarks2'
     });
-    testBook.$updateBy(
-      access.Writer.getAcl(),
-      {
-        title: 'yet anotherBook',
-        content: 'even more pages',
-        bookmarks: 'even more bookmarks',
-        notes: 'even more notes',
-        sold: 101
-      }
-    );
+    done();
+  });
+
+  it ('should extend objects with write protection using defaults', function(done) {
+    specs.$default$ = { rdwr: 'Writer' };
+    access.protect(specs, testBook);
+    var result = testBook.$updateBy(access.Author.getAcl(), bookUpdates);
     testBook.should.match({
-      title: 'yet anotherBook',
-      content: 'even more pages',
-      bookmarks: 'even more bookmarks',
-      notes: 'even more notes',
-      sold: 101
+      title: 'Title2',
+      content: 'Content2',
+      sales: 10,
+      reviews: 'Reviews1',
+      remarks: 'Remarks1'
     });
     done();
   });
