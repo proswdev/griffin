@@ -1,7 +1,7 @@
 {
   "name": "griffin",
   "version": "1.2.0",
-  "description": "Powerful access control using dot notation syntax",
+  "description": "Comprehensive access control using dot notation syntax",
   "main": "index.js",
   "scripts": {
     "test": "/usr/lib/node_modules/mocha"
@@ -15,9 +15,6 @@
     "access",
     "access control",
     "access control list",
-    "nodejs",
-    "npm",
-    "javascript",
     "permission",
     "permissions",
     "role",
@@ -27,9 +24,9 @@
     "dot notation",
     "auth",
     "authorization",
-    "objects",
     "protection",
-    "security"
+    "security",
+    "web"
   ],
   "dependencies": {},
   "devDependencies": {

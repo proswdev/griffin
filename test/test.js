@@ -478,7 +478,7 @@ describe("Access", function() {
 
 describe("Access-object", function() {
 
-  var specs,$default$,testBook,bookUpdates;
+  var specs,$default,testBook,bookUpdates;
 
   beforeEach(function() {
     testBook = {
@@ -498,7 +498,7 @@ describe("Access-object", function() {
     var bookRead = access.Book.read.getAcl();
     var bookWrite = access.Book.write.getAcl();
     specs = {
-//      _default$: { read: 'Book.read', write: 'Author' },
+      ignore: { read: 'Book.read', write: 'Author' },
       title: { read: 'Book.read', write: 'Author' },
       content: { read: bookRead, write: 'Author' },
       sales: { rdwr: 'Writer' },
@@ -506,10 +506,11 @@ describe("Access-object", function() {
     };
   });
 
-  it ('should read protect objects - test #1', function(done) {
+  it ('should extract objects based on ACL - test #1', function(done) {
     var protect = access.protect(specs);
-    var result = protect.$extractFor(access.Reader.getAcl(), testBook);
-    result.should.match({
+    var result = protect.$extract(access.Reader.getAcl(), testBook);
+    result.should.not.equal(testBook);
+    result.should.eql({
       title: 'Title1',
       content: 'Content1',
       reviews: 'Reviews1',
@@ -518,10 +519,11 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should read protect objects - test #2', function(done) {
+  it ('should extract objects based on ACL - test #2', function(done) {
     var protect = access.protect(specs);
-    var result = protect.$extractFor(access.Author.getAcl(), testBook);
-    result.should.match({
+    var result = protect.$extract(access.Author.getAcl(), testBook);
+    result.should.not.equal(testBook);
+    result.should.eql({
       title: 'Title1',
       content: 'Content1',
       reviews: 'Reviews1',
@@ -530,19 +532,20 @@ describe("Access-object", function() {
     done();
   });
 
-
-  it ('should read protect objects - test #3', function(done) {
+  it ('should extract objects based on ACL - test #3', function(done) {
     var protect = access.protect(specs);
-    var result = protect.$extractFor(access.Writer.getAcl(), testBook);
-    result.should.match(testBook);
+    var result = protect.$extract(access.Writer.getAcl(), testBook);
+    result.should.not.equal(testBook);
+    result.should.eql(testBook);
     done();
   });
 
-  it ('should read protect objects using defaults - test #1', function(done) {
-    specs.$default$ = { rdwr: 'Author' };
+  it ('should extract objects based on ACL and defaults - test #1', function(done) {
+    specs.$default = { rdwr: 'Author' };
     var protect = access.protect(specs);
-    var result = protect.$extractFor(access.Reader.getAcl(), testBook);
-    result.should.match({
+    var result = protect.$extract(access.Reader.getAcl(), testBook);
+    result.should.not.equal(testBook);
+    result.should.eql({
       title: 'Title1',
       content: 'Content1',
       reviews: 'Reviews1'
@@ -550,11 +553,12 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should read protect objects using defaults - test #2', function(done) {
-    specs.$default$ = { rdwr: 'Author' };
+  it ('should extract objects based on ACL and defaults - test #2', function(done) {
+    specs.$default = { rdwr: 'Author' };
     var protect = access.protect(specs);
-    var result = protect.$extractFor(access.Author.getAcl(), testBook);
-    result.should.match({
+    var result = protect.$extract(access.Author.getAcl(), testBook);
+    result.should.not.equal(testBook);
+    result.should.eql({
       title: 'Title1',
       content: 'Content1',
       reviews: 'Reviews1',
@@ -563,18 +567,59 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should read protect objects using defaults - test #3', function(done) {
-    specs.$default$ = { rdwr: 'Author' };
+  it ('should extract objects based on ACL and defaults - test #3', function(done) {
+    specs.$default = { rdwr: 'Author' };
     var protect = access.protect(specs);
-    var result = protect.$extractFor(access.Writer.getAcl(), testBook);
-    result.should.match(testBook);
+    var result = protect.$extract(access.Writer.getAcl(), testBook);
+    result.should.not.equal(testBook);
+    result.should.eql(testBook);
     done();
   });
 
-  it ('should write protect objects - test #1', function(done) {
+  it ('should filter objects based on ACL - test #1', function(done) {
     var protect = access.protect(specs);
-    var result = protect.$updateBy(access.Reader.getAcl(), bookUpdates, testBook);
-    result.should.match({
+    var result = protect.$filter(access.Reader.getAcl(), testBook);
+    result.should.equal(testBook);
+    testBook.should.eql({
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1',
+      remarks: 'Remarks1'
+    });
+    done();
+  });
+
+  it ('should filter objects based on ACL - test #2', function(done) {
+    var protect = access.protect(specs);
+    var result = protect.$filter(access.Author.getAcl(), testBook);
+    result.should.equal(testBook);
+    testBook.should.eql({
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1',
+      remarks: 'Remarks1'
+    });
+    done();
+  });
+
+  it ('should filter objects based on ACL - test #3', function(done) {
+    var protect = access.protect(specs);
+    var result = protect.$filter(access.Writer.getAcl(), testBook);
+    result.should.equal(testBook);
+    testBook.should.eql({
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1',
+      remarks: 'Remarks1',
+      sales: 10
+    });
+    done();
+  });
+
+  it ('should update objects based on ACL - test #1', function(done) {
+    var protect = access.protect(specs);
+    var result = protect.$update(access.Reader.getAcl(), bookUpdates, testBook);
+    result.should.eql({
       title: 'Title1',
       content: 'Content1',
       sales: 10,
@@ -584,10 +629,10 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should write protect objects - test #2', function(done) {
+  it ('should update objects based on ACL - test #2', function(done) {
     var protect = access.protect(specs);
-    var result = protect.$updateBy(access.Author.getAcl(), bookUpdates, testBook);
-    result.should.match({
+    var result = protect.$update(access.Author.getAcl(), bookUpdates, testBook);
+    result.should.eql({
       title: 'Title2',
       content: 'Content2',
       sales: 10,
@@ -597,10 +642,10 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should write protect objects - test #3', function(done) {
+  it ('should update objects based on ACL - test #3', function(done) {
     var protect = access.protect(specs);
-    var result = protect.$updateBy(access.Writer.getAcl(), bookUpdates, testBook);
-    result.should.match({
+    var result = protect.$update(access.Writer.getAcl(), bookUpdates, testBook);
+    result.should.eql({
       title: 'Title2',
       content: 'Content2',
       sales: 20,
@@ -610,11 +655,11 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should write protect objects using defaults - test #1', function(done) {
-    specs.$default$ = { rdwr: 'Writer' };
+  it ('should update objects based on ACL and defaults - test #1', function(done) {
+    specs.$default = { rdwr: 'Writer' };
     var protect = access.protect(specs);
-    var result = protect.$updateBy(access.Reader.getAcl(), bookUpdates, testBook);
-    result.should.match({
+    var result = protect.$update(access.Reader.getAcl(), bookUpdates, testBook);
+    result.should.eql({
       title: 'Title1',
       content: 'Content1',
       sales: 10,
@@ -624,11 +669,11 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should write protect objects using defaults - test #2', function(done) {
-    specs.$default$ = { rdwr: 'Writer' };
+  it ('should update objects based on ACL and defaults - test #2', function(done) {
+    specs.$default = { rdwr: 'Writer' };
     var protect = access.protect(specs);
-    var result = protect.$updateBy(access.Author.getAcl(), bookUpdates, testBook);
-    result.should.match({
+    var result = protect.$update(access.Author.getAcl(), bookUpdates, testBook);
+    result.should.eql({
       title: 'Title2',
       content: 'Content2',
       sales: 10,
@@ -638,11 +683,11 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should write protect objects using defaults - test #3', function(done) {
-    specs.$default$ = { rdwr: 'Writer' };
+  it ('should update objects based on ACL and defaults - test #3', function(done) {
+    specs.$default = { rdwr: 'Writer' };
     var protect = access.protect(specs);
-    var result = protect.$updateBy(access.Writer.getAcl(), bookUpdates, testBook);
-    result.should.match({
+    var result = protect.$update(access.Writer.getAcl(), bookUpdates, testBook);
+    result.should.eql({
       title: 'Title2',
       content: 'Content2',
       sales: 20,
@@ -652,10 +697,14 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should extend objects with read protection', function(done) {
+  it ('should extend objects with extraction based on ACL', function(done) {
     access.protect(specs, testBook);
-    var result = testBook.$extractFor(access.Reader.getAcl());
-    result.should.match({
+    var result = testBook.$extract(access.Reader.getAcl());
+    result.should.not.equal(testBook);
+    result.should.eql({
+      $extract: testBook.$extract,
+      $filter: testBook.$filter,
+      $update: testBook.$update,
       title: 'Title1',
       content: 'Content1',
       reviews: 'Reviews1',
@@ -664,11 +713,30 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should extend objects with read protection using defaults', function(done) {
-    specs.$default$ = { rdwr: 'Author' };
+  it ('should extend objects with extraction based on ACL and defaults', function(done) {
+    specs.$default = { rdwr: 'Author' };
     access.protect(specs, testBook);
-    var result = testBook.$extractFor(access.Author.getAcl());
-    result.should.match({
+    var result = testBook.$extract(access.Reader.getAcl());
+    result.should.not.equal(testBook);
+    result.should.eql({
+      $extract: testBook.$extract,
+      $filter: testBook.$filter,
+      $update: testBook.$update,
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1'
+    });
+    done();
+  });
+
+  it ('should extend objects with filter based on ACL', function(done) {
+    access.protect(specs, testBook);
+    var result = testBook.$filter(access.Reader.getAcl());
+    result.should.equal(testBook);
+    result.should.eql({
+      $extract: testBook.$extract,
+      $filter: testBook.$filter,
+      $update: testBook.$update,
       title: 'Title1',
       content: 'Content1',
       reviews: 'Reviews1',
@@ -677,10 +745,29 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should extend objects with write protection', function(done) {
+  it ('should extend objects with filter based on ACL and defaults', function(done) {
+    specs.$default = { rdwr: 'Author' };
     access.protect(specs, testBook);
-    testBook.$updateBy(access.Author.getAcl(), bookUpdates);
-    testBook.should.match({
+    var result = testBook.$filter(access.Reader.getAcl());
+    result.should.equal(testBook);
+    result.should.eql({
+      $extract: testBook.$extract,
+      $filter: testBook.$filter,
+      $update: testBook.$update,
+      title: 'Title1',
+      content: 'Content1',
+      reviews: 'Reviews1'
+    });
+    done();
+  });
+
+  it ('should extend objects with updates based on ACL', function(done) {
+    access.protect(specs, testBook);
+    testBook.$update(access.Author.getAcl(), bookUpdates);
+    testBook.should.eql({
+      $extract: testBook.$extract,
+      $filter: testBook.$filter,
+      $update: testBook.$update,
       title: 'Title2',
       content: 'Content2',
       sales: 10,
@@ -690,11 +777,14 @@ describe("Access-object", function() {
     done();
   });
 
-  it ('should extend objects with write protection using defaults', function(done) {
-    specs.$default$ = { rdwr: 'Writer' };
+  it ('should extend objects with updates based on ACL and defaults', function(done) {
+    specs.$default = { rdwr: 'Writer' };
     access.protect(specs, testBook);
-    var result = testBook.$updateBy(access.Author.getAcl(), bookUpdates);
-    testBook.should.match({
+    var result = testBook.$update(access.Author.getAcl(), bookUpdates);
+    testBook.should.eql({
+      $extract: testBook.$extract,
+      $filter: testBook.$filter,
+      $update: testBook.$update,
       title: 'Title2',
       content: 'Content2',
       sales: 10,

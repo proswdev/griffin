@@ -1,6 +1,6 @@
 # griffin #
 
-Provides attribute-like access control through a simple but powerful dot notation syntax
+Provides comprehensive access control through a simple but powerful dot notation syntax
 
 ## Installation ##
 
@@ -9,66 +9,72 @@ $ npm install griffin
 ```
 
 ## Introduction ##
-Griffin is an NPM plug-in providing full access control through a simple but powerful dot notation syntax. Access is defined once at startup through permissions and roles. Permissions identify possible actions for a protected resource  while roles can group one or more permissions together.
+Griffin is a comprehensive access control list (ACL) framework for NodeJS server applications. It manages access to incoming requests and controls which properties of an object can be changed or retrieved by clients based on custom access rules which are specified through a simple but powerful dot notation syntax. All roles and permissions are defined globally in a single module:
 ```javascript
+/* access.js */
 var access = require('griffin');
 access.define([
-    { role: 'Reader', access: [
-        { resource: 'Book', action: 'read,browse' },
-        { resource: 'Letter', action: 'read' }
-    ]},
-    { role: 'Writer', access: [
-        { resource: 'Book', action: 'read,write,edit' },
-        { resource: 'Letter', action: 'read,write,send' }
-    ]},
-	{ role: 'Author', access: { resource: 'Book', action: '*' }},
-	{ role: 'Admin', access: '*' }
+  { role: 'Reader', access: [
+    { resource: 'Book', action: 'read,browse' },
+    { resource: 'Letter', action: 'read' }
+  ]},
+  { role: 'Author', access: [
+    { resource: 'Book', action: 'read,write,edit' },
+    { resource: 'Letter', action: 'read,write,send' }
+  ]}
 ]);
+module.exports = access;
 ```
-NOTE: The examples in this document are based on the default integration with Express but be aware that Griffin provides an adaption layer to simplify integration with other frameworks. See Griffin Customization at the end of this document for more details.
-
-Access is granted to incoming requests based on your local business rules. The following example grants access using roles...
+Using the defined permissions and roles, access is granted to incoming requests based on your local business rules.
 ```javascript
-access.Reader.grantTo(req);
-```
-or using permissions ...
-```javascript
-access.Book.read.browse.Letter.read.grantTo(req);
-```
-or any combination
-```javascript
-access.Reader.and.Book.write.grantTo(req);
-```
-Assuming permissions and roles are properly defined and granted to incoming requests, access to controller methods can be specified by simply using the same dot notation. The following example will return a controller method that prevents access to the specified function unless the *Reader* role has been granted to the incoming request:
-```javascript
-exports.readPage = access.Reader.requiredFor(function (req,res) {
-	// Implement page reading here ...
+/* router.js */
+var express = require('express');
+var access = require('./access');
+var router = express.Router();
+router.use(function(req,res) {
+  var user = /* your code here */
+  switch(user) {
+    case 'someReader':
+      // Grant access using roles ...
+      access.Reader.grantTo(req);
+      break;
+    case 'anotherReader':
+      // or using permisssions ...
+      access.Book.read.browse.Letter.read.grantTo(req);
+      break;
+    case 'someWriter':
+      // or any combination
+      access.Reader.and.Book.write.grantTo(req);
+      break;
+  }
 });
+...
 ```
-Access notation can be as simple as shown above or a complex combination of roles and permissions. The following example will allow access to the page writing function if the incoming request is granted *Book read+write+browse* permissions and *Letter read+write* permissions (all listed permissions are required). Alternatively, access is also allowed if the request is granted both the *Reader* and *Writer* roles.
+Access to routes can then be controlled through routing with middleware
 ```javascript
-exports.writePage = access
-	.Book.Letter.read.write.and.Book.browse
-	.or
-	.Reader.Writer
-	.requiredFor(function (req,res) {
-		// Implement page writing here ...
+/* router.js (cont'd) */
+var book = require('./book');
+router.get('/book/:book', access.Book.read.required, book.read);
+...
+```
+```javascript
+/* book.js */
+exports.read = function(req,res) {
+  // Not invoked unless Book.read permission granted to request
+}
+...
+```
+or through modified controller methods
+```javascript
+/* router.js (cont'd) */
+router.put('/book/:book', book.write);
+```
+```javascript
+/* book.js (cont'd) */
+var access = require('./access');
+exports.write = access.Author.requiredFor(function(req,res) {
+  // Not invoked unless Author role assigned to request
 });
-```
-Griffin provides several means to control access directly through the router:
-```javascript
-var app = express();
-app.use('/Book/read', access.Book.read.or.Book.browse.required);
-app.use('/Book/edit', access.Writer.required, editBook);
-app.use('/Letter/send', access.Letter.send.requiredFor(mailController.send));
-```
-By default, Griffin returns HTTP status 403 "Forbidden" with message "Access denied" when access is not permitted but the response behavior is configurable. See Griffin Customization below for more details about configurable options:
-```javascript
-var access = require('griffin');
-// It is recommended to return HTTP 404 "Not Found" without failure message if server does
-// not wish to reveal exactly why the request has been refused  
-access.options.errorStatus = 404;
-access.options.errorMessage = null;
 ```
 Access verification and control can also be performed within the function body:
 ```javascript
@@ -81,6 +87,66 @@ exports.bookEdit = function (req,res) {
 	}
 }
 ```
+Griffin can also add access control capabilities to generic objects
+```javascript
+// Some generic book object
+var someBook = {
+  content: 'some content',
+  sold: 100,
+  reviews: 'some reviews'
+};
+// Access control specs for books
+var bookSpecs = {
+  // Book.read permission required to read content
+  // while only Author can write
+  content: { read: 'Book.read', write: 'Author' },
+  // Only Author can read and write number of books sold
+  sold: { rdwr: 'Author' }
+  // Anyone with Book.read permission can read reviews
+  // but only Readers can write or update a review
+  reviews: { read: 'Book.read', write: 'Reader' }
+};
+// Add access control methods $extract, $update and $filter to 
+// someBook object to restrict access to its properties 
+access.protect(bookSpecs, someBook);
+```
+Now the $extact method is available to retrieve property values based on granted access.
+```javascript
+// Authors will receive entire someBook object in response
+access.Writer.grantTo(req);
+var authorData = someBook.$extract(req);
+res.send(authorData);
+// sends { content: 'some content', reviews: 'some reviews', sold: 100 }
+```
+```javascript
+// Readers will not receive the sold property
+var readerData - someBook.$extract(access.Reader.getAcl());
+res.send(readerData);
+// sends { content: 'some content', reviews: 'some reviews' }
+```
+Use the $update method to allow object changes based on granted access
+```javascript
+// Authors can update the sold property, but not reviews
+access.Writer.grantTo(req);
+someBook.$update(req, { sold: 123, reviews: 'best book ever' });
+// someBook = { content: 'some content', sold: 123, reviews: 'some reviews' }
+```
+```javascript
+// Authors can update reviews but not number of books sold
+access.Reader.grantTo(req);
+someBook.$update(req, { sold: 200, reviews: 'book is ok' });
+// someBook = { content: 'some content', sold: 123, reviews: 'book is ok' }
+```
+Access notation can be simple as shown in the examples above but can also contain a complex combination of roles and permissions. The following example will allow access to the page writing function if the incoming request is granted *Book read+write+browse* permissions and *Letter read+write* permissions (all listed permissions are required). Alternatively, access is also allowed if the request is granted both the *Reader* and *Writer* roles.
+```javascript
+exports.writePage = access
+	.Book.Letter.read.write.and.Book.browse
+	.or
+	.Reader.Writer
+	.requiredFor(function (req,res) {
+		// Implement page writing here ...
+});
+```
 Dynamic access notation using strings is supported as follows:
 ```javascript
 var bookWrite='Reader.Book.write', role='Reader', resource='Book', action='edit';
@@ -90,6 +156,14 @@ access.eval(bookWrite).requiredFor(...)
 access.Reader[resource]['write'].requiredFor(...)
 access[role][resource][action].requiredFor(...)
 access.Reader.eval('Book.write').requiredFor(...)
+```
+By default, Griffin returns HTTP status 403 "Forbidden" with message "Access denied" when access is not permitted but the response behavior is configurable. See Griffin Customization below for more details about configurable options:
+```javascript
+var access = require('griffin');
+// It is recommended to return HTTP 404 "Not Found" without failure message if server does
+// not wish to reveal exactly why the request has been refused  
+access.options.errorStatus = 404;
+access.options.errorMessage = null;
 ```
 ## Access Definition ##
 Griffin defines access control through the notion of permissions, resources, actions and roles. A resource identifies an application specific data set that requires protection from unauthorized access like user info or blog contents. Actions define what operations can be performed on that resource and depend on the nature of the data involved. A particular action associated with a specific resource is known as a permission. Permissions can be grouped into roles to form a  logical set of access rules, but roles can also be defined without permissions to simply identify generic access classes. A role can also include other smaller roles.     
